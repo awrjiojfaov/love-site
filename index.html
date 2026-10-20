@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>%VITE_APP_TITLE%</title>
+    <meta name="description" content="%VITE_APP_DESC%" />
+    <meta name="theme-color" content="#f9a8c9" />
+
+    <!-- PWA：添加到主屏幕 -->
+    <link rel="manifest" href="/manifest.webmanifest?v=2" />
+    <link rel="icon" type="image/png" href="/favicon-v2.png" />
+
+    <!-- iOS 添加到主屏幕 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="%VITE_APP_TITLE%" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

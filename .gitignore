@@ -1,0 +1,54 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tencent Cloud EdgeOne
+.env
+*.env
+!.env.example
+.edgeone/*
+.tef_dist/*
+
+# Credentials & private notes (keep local only)
+部署信息.txt
+交接文档.md
+AGENTS.md
+docs/handover.md
+docs/handover-desktop.md
+docs/worklog.md
+
+# 个人部署工具（含域名与本机路径，不入库；部署步骤见 README）
+deploy/
+deploy_surge.py
+更新网站.bat
+
+# Local-only data & scratch
+rescue/
+tmp/
+dev-server.log
+tools/tmp/
+tools/soil_src/
+tools/_remote/
+deploy/assets_src/
+*.bak-* love-site.zip
