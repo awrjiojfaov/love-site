@@ -12,7 +12,7 @@ import { publishPartial, subscribePartial, partialSeenAt, type PartialEnvelope }
 
 import { addTx } from './wallet'
 import { addTreeXp } from './tree'
-import { grantReagent, seedStones } from './jade'
+import { grantReagent, grantReward } from './jade'
 import { isPairMember, membersKnown, resolveTopic } from './space'
 
 /** 清理混入的外组账号数据：farms/vv 只保留当前空间成员 */
@@ -1423,10 +1423,14 @@ export function doCheckin(who: string): CheckinResult {
     for (const s of seeds) f.warehouse[s.id] = (f.warehouse[s.id] ?? 0) + 1
   }, [])
   if (!ok) return { ok: false, msg: '同步中，请稍后再试' }
-  // 帝王料直接进玉石鉴定（seedStones 是 jade 侧 API，不扣时元）
-  seedStones(who, CHECKIN_TIER, CHECKIN_STONE_COUNT)
-  // 龙涎提纯剂进提纯剂库存
-  grantReagent(who, CHECKIN_REAGENT, CHECKIN_REAGENT_COUNT)
+  // 帝王料 + 龙涎提纯剂走 jade 侧幂等发放：key = checkin-<谁>-<日期>（2026-10-21
+  // 修「打卡奖励重复发放」）——两台设备各持旧农场同时打卡、断网重放、换机重连，
+  // 都只发一份；农场侧种子因 checkinDay 先落账，天然只给首台成功设备。
+  grantReward(who, {
+    key: `checkin-${who}-${todayKey()}`,
+    stones: [{ tier: CHECKIN_TIER, count: CHECKIN_STONE_COUNT }],
+    reagent: { id: CHECKIN_REAGENT, count: CHECKIN_REAGENT_COUNT },
+  })
   addTreeXp(who) // 打卡也顺手给爱情树 +2
   return {
     ok: true,

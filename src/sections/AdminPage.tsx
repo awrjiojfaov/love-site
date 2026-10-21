@@ -11,7 +11,7 @@ import {
   setGlobalHidden,
   type Registry,
 } from '../lib/registry'
-import { seedStones } from '../lib/jade'
+import { seedStones, jadeAliveCount } from '../lib/jade'
 import { ADMIN_NAME, ADMIN_PASSWORD, MEMBER_A, MEMBER_B } from '../config'
 
 /** 小开关：用于隐藏页面总开关与逐账号权限 */
@@ -112,7 +112,16 @@ export default function AdminPage({ user, onBack }: { user: User; onBack: () => 
   }
 
   const handleSeedJade = () => {
-    if (confirm(`确定给「${ADMIN_NAME}」账号送上 20 块帝王料吗？`)) {
+    // 2026-10-21 补操作防呆：玉石库存是「只进不出」的收藏经济，每重复送一次
+    // 就永久胖 20 块（切割还会翻出伴生小料）。弹窗里直接亮出当前水位，让人
+    // 意识到自己连点的后果，避免以往「随手补发 → 帝王料堆成山」的膨胀事故。
+    const alive = jadeAliveCount(ADMIN_NAME, 't4')
+    if (confirm(
+      `确定给「${ADMIN_NAME}」送上 20 块帝王料吗？\n\n` +
+      `当前已持有帝王料：${alive} 块（未切+已切+收藏+拍卖）\n` +
+      `每次「补发/测试按钮」都会永久进收藏柜，切割后件数还会翻倍。\n` +
+      `如果只是为了验证功能，今天点过一次就够了。`,
+    )) {
       const r = seedStones(ADMIN_NAME, 't4', 20)
       alert(r.msg)
     }

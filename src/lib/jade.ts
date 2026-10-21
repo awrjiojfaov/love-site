@@ -516,7 +516,25 @@ interface JadeState {
   reagents: Record<string, ReagentLedger>;
   /** 终端态石头折叠归档（2026-10-10 新增，老数据无此字段 = 还没折过） */
   arch?: JadeArchive;
+  /**
+   * 奖励发放墓碑：key → 发放时刻（2026-10-21 新增，老数据无此字段 = 无记录）。
+   * 每日打卡这类「一次性奖励」用确定性 key（checkin-<who>-<日期>）防多设备竞态重复发放；
+   * 合并取并集（同 key 取大 ts），天然收敛且重放无效。
+   */
+  grants?: Record<string, number>;
   v: number;
+}
+
+/** grants 墓碑上限：超过就丢最旧一批（只按 value=ts 排），不影响活性奖励（键里带日期） */
+const MAX_GRANTS = 2000;
+function addGrants(prev: Record<string, number> | undefined, key: string, ts: number): Record<string, number> {
+  const out: Record<string, number> = { ...(prev ?? {}), [key]: Math.max(prev?.[key] ?? 0, ts) };
+  const keys = Object.keys(out);
+  if (keys.length <= MAX_GRANTS) return out;
+  const sorted = [...keys].sort((a, b) => (out[a] ?? 0) - (out[b] ?? 0));
+  const stale = new Set(sorted.slice(0, keys.length - MAX_GRANTS));
+  for (const k of stale) delete out[k];
+  return out;
 }
 
 const TOPIC = 'lovesite/jade/state';
@@ -590,8 +608,10 @@ function foldTerminalStones(): number {
     const s = state.stones[id];
     if (s.status === 'sold') {
       archEarned[s.by] = (archEarned[s.by] ?? 0) + (s.value ?? 0);
+      // 2026-10-21 修「投入虚增」：child/re- 小料卖出只记真实收入，不再重复记整块石价
+      const isChild = id.includes('~') || id.startsWith('re-');
       const tier = STONE_TIERS.find((t) => t.id === s.tierId);
-      if (tier) archSpent[s.by] = (archSpent[s.by] ?? 0) + tier.price;
+      if (tier && !isChild) archSpent[s.by] = (archSpent[s.by] ?? 0) + tier.price;
     }
   }
   addArchTombstones([...drop]);
@@ -760,9 +780,26 @@ function mergeJade(local: JadeState, remote: JadeState): JadeState {
   }
   // 提纯剂库存按人取最大（只增不减，不会互相顶回）
   const reagents = mergeReagents(remote.reagents, local.reagents);
+  // 奖励墓碑取并集（防重复发放的关键字单调收敛）
+  const lg = local.grants ?? {}, rg = remote.grants ?? {};
+  const grants: Record<string, number> = {};
+  for (const key of new Set([...Object.keys(lg), ...Object.keys(rg)])) {
+    grants[key] = Math.max(lg[key] ?? 0, rg[key] ?? 0);
+  }
   // 归档计数器取大 + 墓碑取并集（单调，必然收敛）
   const arch = mergeArchObjs(local.arch, remote.arch);
-  return { stones, products, reagents, arch, v: Math.max(local.v, remote.v) };
+  // 2026-10-21 修「墓碑剪除被回声覆盖」：旧流程 mergeArchive 先把墓碑活体剪掉，
+  // 随后 state = merged（合并纯函数结果）把剪除原样抹掉——墓碑对**非终端态**活体
+  // (kept/cut/uncut，foldTerminalStones 不碰它们) 永远无效，publish 过来的清理墓碑
+  // 各端只是「记住」却删不掉石头。剪除移进合并本体：合并结果按墓碑统一剔除活体
+  // （终端态照旧由 foldTerminalStones 折叠计数）。
+  const tombSet = new Set(arch.ids ?? []);
+  if (tombSet.size > 0) {
+    for (const id of Object.keys(stones)) {
+      if (tombSet.has(id)) delete stones[id];
+    }
+  }
+  return { stones, products, reagents, arch, grants, v: Math.max(local.v, remote.v) };
 }
 
 /** 纯函数版归档合并（不碰全局变量，供 mergeJade 用） */
@@ -811,6 +848,7 @@ function sameJadeState(a: JadeState, b: JadeState): boolean {
   };
   return eqRec(a.stones, b.stones) && eqRec(a.products, b.products)
     && eqLedger(a.reagents ?? {}, b.reagents ?? {})
+    && JSON.stringify(a.grants ?? {}) === JSON.stringify(b.grants ?? {})
     && JSON.stringify(a.arch ?? {}) === JSON.stringify(b.arch ?? {});
 }
 
@@ -848,6 +886,11 @@ function start() {
         archSoldProducts = { ...(b.arch?.soldProducts ?? {}) };
         archProductIds = [...(b.arch?.productIds ?? [])];
         for (const id of archProductIds) archProductIdSet.add(id);
+        // 2026-10-21：备份里可能仍有被墓碑（含数据清理）标记的活体，直接剔掉
+        const restoreTomb = new Set(archIds);
+        if (restoreTomb.size > 0) {
+          b.stones = Object.fromEntries(Object.entries(b.stones).filter(([id]) => !restoreTomb.has(id)));
+        }
       }
     }
   } catch { /* ignore */ }
@@ -1043,6 +1086,56 @@ export function seedStones(who: string, tierId: string, count: number): { ok: bo
   state = { ...state, stones: { ...state.stones, ...added } };
   commit();
   return { ok: true, msg: `已给 ${who} 送上 ${n} 块${tier.name} 🪨` };
+}
+
+/** 带幂等键的奖励发放（2026-10-21）：
+ *  每日打卡这类「一人一天一次」的奖励，旧实现只在农场侧有幂等位（checkinDay），
+ *  玉石/提纯剂发放紧随其后——两台设备各持一份旧农场同时按下打卡，两边都发一份
+ *  （+5 帝王料 +3 提纯剂×2）。这里用确定性 key 打进玉石层：key 已发过 = 整包跳过，
+ *  两端/多次重放都只发一次；grants 墓碑随状态合并取并集，换设备也不复活。 */
+export type RewardOpts = {
+  key?: string;
+  stones?: Array<{ tier: string; count: number }>;
+  reagent?: { id: string; count: number };
+};
+
+export function grantReward(who: string, o: RewardOpts): { ok: boolean; msg: string } {
+  if (isGuestSession()) return { ok: false, msg: '游客不能领奖励' };
+  start();
+  if (o.key && state.grants?.[o.key]) return { ok: true, msg: '这份奖励已经领过啦' };
+  const added: Record<string, OwnedStone> = {};
+  for (const g of o.stones ?? []) {
+    const tier = STONE_TIERS.find((t) => t.id === g.tier);
+    if (!tier || g.count <= 0) continue;
+    for (let i = 0; i < Math.min(100, Math.floor(g.count)); i++) {
+      const stone = rollStone(tier, who);
+      added[stone.id] = stone;
+    }
+  }
+  let reagentMsg = '';
+  if (o.reagent && o.reagent.count > 0) {
+    const m = state.reagents[who] ?? {};
+    const produced = { ...(m.produced ?? {}), [o.reagent.id]: (m.produced?.[o.reagent.id] ?? 0) + o.reagent.count };
+    state = { ...state, reagents: { ...state.reagents, [who]: { produced, consumed: m.consumed ?? {} } } };
+    reagentMsg = ` ·${o.reagent.id === 'supreme' ? '龙涎提纯剂' : o.reagent.id} ×${o.reagent.count}`;
+  }
+  if (o.key) state = { ...state, grants: addGrants(state.grants, o.key, Date.now()) };
+  state = { ...state, stones: { ...state.stones, ...added } };
+  commit();
+  const stoneMsg = Object.values(added).length > 0 ? `发出 ${added.length} 块料` : '奖励已入账';
+  return { ok: true, msg: `${stoneMsg}${reagentMsg} ✅` };
+}
+
+/** 某人名下还活着（未折叠）的某档石头数（未切+已切+收藏+拍卖），管理员送料前看的库存水位 */
+export function jadeAliveCount(who: string, tierId?: string): number {
+  start();
+  let n = 0;
+  for (const s of Object.values(state.stones)) {
+    if (s.by !== who) continue;
+    if (tierId && s.tierId !== tierId) continue;
+    n++;
+  }
+  return n;
 }
 
 /** 买石头：先扣时元，再上石头（调用方先查余额） */
@@ -1767,8 +1860,13 @@ export function jadeStats(who: string): { spent: number; earned: number; cut: nu
   let cut = 0, kept = 0;
   for (const s of Object.values(state.stones)) {
     if (s.by !== who) continue;
+    // 2026-10-21 修「投入凭空暴涨」：伴生小料（id 带 ~s）和余料（re-开头）是母料的
+    // 拆分结果，母料购买时已计一次石价——每颗活体小料/余料再各计一次 t4=80000，
+    // 切一刀就"投入 +3×石价"、收藏柜越攒投入越肥，完全是虚增。只给「整块料」
+    // （母料/单独买进的/砖）计价一次。历史已售的 child 计入由 foldTerminalStones 同步停止。
+    const isChild = s.id.includes('~') || s.id.startsWith('re-');
     const tier = STONE_TIERS.find((t) => t.id === s.tierId);
-    if (tier) spent += tier.price;
+    if (tier && !isChild) spent += tier.price;
     if (s.status === 'sold') earned += s.value;
     if (s.status !== 'uncut') cut++;
     if (s.status === 'kept') kept++;
