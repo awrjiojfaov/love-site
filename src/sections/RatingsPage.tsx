@@ -24,7 +24,7 @@ import * as ratingsStore from '../lib/store'
 import { getPairMembers } from '../lib/space'
 import { MEMBER_AVATARS as AVATARS, MEMBER_AVATAR_LIST, avatarA } from '../lib/memberAvatars'
 
-/** 打分面板需要的数据通道（见闻打分 store / do打分 dostore 同构，任选其一注入） */
+/** 打分面板需要的数据通道（见闻打分 store） */
 export interface RatingStore {
   subscribeRatings: (onData: (data: LoveData) => void, onError?: (msg: string) => void) => () => void
   addRating: (r: {

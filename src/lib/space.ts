@@ -83,51 +83,11 @@ export function spacePrefix(): string {
 
 /**
  * 是否默认空间（默认账号组）。
- * 新建账号组 = registry 生成的 6 位 pairId，非默认空间 → 一批功能按它关闭：
- * 秘密空间两功能转「待开发」、纪念日盲盒停发、主页计时改为双方自设、头像初始空白。
+ * 新建账号组 = registry 生成的 6 位 pairId。非默认空间时，一部分功能按新账号规则走：
+ * 纪念日盲盒停发、主页计时改为双方自设、头像初始空白。
  */
 export function isDefaultSpace(): boolean {
   return getSpaceId() === ''
-}
-
-/**
- * 隐藏界面（秘密空间：do打分 / 姿势转盘，及以后新增的隐藏功能，如情侣飞行棋）开放规则。
- *
- * 判定顺序（前一个为否即拒绝）：
- *  1. 全站总开关 —— 管理员（VITE_ADMIN_NAME）在管理页「隐藏页面设置」里的 hiddenPages；
- *     缺省视为开启。关掉后所有人（含默认账号组）都进不去。
- *  2. 默认账号组 —— 直接放行（其账号不在 registry 里，没有逐账号 flag）。
- *  3. 白名单 SECRET_FEATURE_GROUPS —— 需要额外放行的账号组名写进这个数组即可（历史兼容）。
- *  4. 逐账号 flag —— registry 里该账号的 allowHidden；缺省 = 允许（新建账号默认具备）。
- *
- * 注意：依赖 registry 本地缓存，成员名单未知（缓存未就绪）时按未开放处理。
- */
-const SECRET_FEATURE_GROUPS: string[] = []
-
-/** 全站隐藏页面是否开启（读 registry 缓存；缺省 = 开启，兼容旧数据） */
-export function hiddenPagesEnabled(): boolean {
-  return readRegistryCache().config?.hiddenPages !== false
-}
-
-/** 某账号是否被允许打开隐藏页面（缺省 = 允许） */
-export function accountAllowsHidden(name: string): boolean {
-  if (!name) return false
-  const u = readRegistryCache().users?.[name]
-  return u ? u.allowHidden !== false : true
-}
-
-/**
- * 当前登录账号（可选传入）能否打开隐藏页面。
- * 不传 userName 时按「当前空间的成员之一被放行」判定（供无账号上下文的预热等场景）。
- */
-export function hasSecretFeatures(userName?: string): boolean {
-  if (!hiddenPagesEnabled()) return false
-  if (isDefaultSpace()) return true
-  const members = getPairMembers()
-  if (members.length === 0) return false
-  if (SECRET_FEATURE_GROUPS.some((n) => members.includes(n))) return true
-  const targets = userName && members.includes(userName) ? [userName] : members
-  return targets.some((n) => accountAllowsHidden(n))
 }
 
 function isGlobalTopic(topic: string): boolean {
@@ -146,9 +106,8 @@ export function resolveTopic(topic: string): string {
 // ---- 成员解析（依赖 registry 的本地缓存，避免循环依赖只读 localStorage）----
 
 type RegistryCache = {
-  users?: Record<string, { name: string; pairId?: string; allowHidden?: boolean }>
+  users?: Record<string, { name: string; pairId?: string }>
   pairs?: Record<string, { members: string[] }>
-  config?: { hiddenPages?: boolean }
 }
 
 /** 2026-10-09 同步提速：按原始字符串缓存解析结果。

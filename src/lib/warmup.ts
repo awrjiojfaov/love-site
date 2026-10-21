@@ -5,9 +5,7 @@
  * 点开任何功能页都是内存里的最新数据，秒开。
  */
 import { subscribeRatings as warmRatings } from './store'
-import { subscribeRatings as warmDoRatings } from './dostore'
 import { subscribeQuiz } from './quiz'
-import { subscribeWheel } from './wheel'
 import { subscribeMap } from './mapStore'
 import { subscribeFrames } from './frames'
 import { subscribeWishes } from './wish'
@@ -18,12 +16,10 @@ import { subscribeWhisper } from './whisper'
 import { subscribeDG } from './drawguess'
 import { subscribeAuction } from './auction'
 import { subscribeStocks } from './stockStore'
-import { subscribeChess } from './flyingChess'
-import { hasSecretFeatures } from './space'
 
 let warmed = false
 
-export function warmupSync(userName?: string): void {
+export function warmupSync(): void {
   if (warmed) return
   warmed = true
   const noop = () => {
@@ -31,12 +27,6 @@ export function warmupSync(userName?: string): void {
   }
   try {
     warmRatings(noop)
-    // 未开放账号组：秘密空间两功能显示「待开发」，不预热它们的云端订阅
-    if (hasSecretFeatures(userName)) {
-      warmDoRatings(noop)
-      subscribeWheel(noop)
-      subscribeChess(noop) // 隐藏页·情侣飞行棋：进主页即连好云端对局状态
-    }
     subscribeQuiz(noop)
     subscribeMap(noop)
     subscribeFrames(noop)

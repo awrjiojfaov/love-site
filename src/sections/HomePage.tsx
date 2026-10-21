@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { BellRing, BookHeart, BookOpen, Coins, Gem, Gift, Heart, Lock, LockOpen, LogOut, MapPinned, MessageCircleHeart, Palette, Pencil, PiggyBank, ScrollText, Send, Sparkles, Star, TrendingUp, Users, X } from 'lucide-react'
+import { BellRing, BookHeart, BookOpen, Coins, Gem, Gift, Lock, LockOpen, LogOut, MapPinned, MessageCircleHeart, Palette, Pencil, PiggyBank, ScrollText, Send, Sparkles, Star, TrendingUp, Users, X } from 'lucide-react'
 import bgHero from '../assets/bg-hero.jpg'
 import lihuaCat from '../assets/pet/lihua-cat.png'
 import { MEMBER_AVATARS } from '../lib/memberAvatars'
 import { LOVE_START, ADMIN_NAME, ICP } from '../config'
 import type { User } from './LoginPage'
-import { getAllUsers as getUserMap } from './LoginPage'
-import { partnerOf, isDefaultSpace, hasSecretFeatures } from '../lib/space'
-import { subscribeRegistry } from '../lib/registry'
+import { partnerOf, isDefaultSpace } from '../lib/space'
 import { subscribeLoveTime, setLoveTime } from '../lib/loveTime'
 import { subscribeWallet, type WalletTx } from '../lib/wallet'
 import { subscribeAsks, type AskItem } from '../lib/ask'
@@ -59,7 +57,6 @@ export default function HomePage({
   user,
   onLogout,
   onOpenRatings,
-  onOpenSecret,
   onOpenQuiz,
   onOpenAsk,
   onOpenFarm,
@@ -79,7 +76,6 @@ export default function HomePage({
   user: User
   onLogout: () => void
   onOpenRatings: () => void
-  onOpenSecret: () => void
   onOpenQuiz: () => void
   onOpenAsk: () => void
   onOpenFarm: () => void
@@ -98,11 +94,6 @@ export default function HomePage({
 }) {
   // 账号组判定：默认账号组保留全部老功能，其余按新账号规则
   const isDefault = isDefaultSpace()
-
-  // 隐藏页面权限：管理员在管理端改动后，本页入口实时刷新（注册表缓存变化即重渲染）
-  const [, bumpAccess] = useState(0)
-  useEffect(() => subscribeRegistry(() => bumpAccess((v) => v + 1)), [])
-  const canOpenHidden = hasSecretFeatures(user.name)
 
   // 在一起的起始时刻：默认组写死常量；新建组留空由双方自设，设置后持久、双方同步
   const [loveStart, setLoveStart] = useState<number | null>(null)
@@ -215,16 +206,6 @@ export default function HomePage({
     const id = setTimeout(() => setShowWelcome(false), 3500)
     return () => clearTimeout(id)
   }, [])
-
-  // 秘密空间密码门
-  const [gateOpen, setGateOpen] = useState(false)
-  const [gatePwd, setGatePwd] = useState('')
-  const [gateError, setGateError] = useState(false)
-
-
-  const openGate = () => {
-    setGateOpen(true)
-  }
 
   // 花园停用状态（仅花园管理员可见右上角开关）
   const [gardenLocked, setGardenLocked] = useState(false)
@@ -418,20 +399,6 @@ export default function HomePage({
     }
   }
 
-  const tryUnlock = () => {
-    // 只有本人输本人密码才能进（账号表可能按名称或按密码作键，统一按密码字段匹配）
-    const account = Object.values(getUserMap()).find((u) => u.password === gatePwd.trim())
-    if (account && account.name === user.name) {
-      setGateOpen(false)
-      setGatePwd('')
-      setGateError(false)
-      onOpenSecret()
-    } else {
-      setGateError(true)
-      setGatePwd('')
-    }
-  }
-
   return (
     <div className="garden-bg min-h-dvh">
       {/* ===== 顶部背景区 ===== */}
@@ -522,7 +489,7 @@ export default function HomePage({
           />
         </svg>
 
-        {/* 用户头像 + 爱心 */}
+        {/* 用户头像 */}
         <div className="absolute inset-x-0 -bottom-12 flex items-end justify-center gap-8">
           <div className="flex flex-col items-center gap-2">
             {renderAvatar(user.name, true)}
@@ -546,20 +513,6 @@ export default function HomePage({
               <ScrollText className="h-3 w-3" />
               记录
             </button>
-            {/* 秘密空间入口：仅白名单账号组（默认组）可点入；其他账号组只展示浮动的爱心，不可进入 */}
-            {canOpenHidden ? (
-              <button
-                onClick={openGate}
-                className="transition-transform active:scale-125"
-                title="秘密空间"
-              >
-                <Heart className="h-7 w-7 animate-[beat_1.2s_ease-in-out_infinite] fill-red-500 text-red-500 drop-shadow-lg" />
-              </button>
-            ) : (
-              <div className="cursor-default" aria-hidden>
-                <Heart className="h-7 w-7 animate-[beat_1.2s_ease-in-out_infinite] fill-red-500 text-red-500 drop-shadow-lg" />
-              </div>
-            )}
           </div>
 
           {/* 显示另一方的账号作为参考（当前数据空间里的搭档） */}
@@ -951,66 +904,8 @@ export default function HomePage({
         </div>
       )}
 
-      {/* 秘密空间密码门弹窗 */}
-      {gateOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-8 backdrop-blur-sm">
-          <div className="w-full max-w-xs rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-[#c44d7d]" />
-                <span className="text-sm font-bold tracking-widest text-[#c44d7d]">秘密空间</span>
-              </div>
-              <button
-                onClick={() => {
-                  setGateOpen(false)
-                  setGatePwd('')
-                  setGateError(false)
-                }}
-                className="text-pink-300 transition-colors active:text-pink-500"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="mb-4 text-center text-xs leading-relaxed text-pink-400">
-              请输入 {user.name} 的登录密码进入
-            </p>
-
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={8}
-              autoFocus
-              value={gatePwd}
-              onChange={(e) => {
-                setGatePwd(e.target.value)
-                setGateError(false)
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && tryUnlock()}
-              placeholder="密码"
-              className="mb-3 w-full rounded-2xl border border-pink-200 bg-pink-50/60 px-4 py-3 text-center text-lg tracking-[0.4em] text-[#8a4a68] outline-none placeholder:text-sm placeholder:tracking-normal placeholder:text-pink-300 focus:border-pink-400 focus:bg-white"
-            />
-
-            {gateError && <p className="mb-3 text-center text-xs text-red-400">密码不对哦</p>}
-
-            <button
-              onClick={tryUnlock}
-              className="w-full rounded-2xl bg-gradient-to-r from-pink-400 to-rose-400 py-3 text-sm font-semibold text-white shadow-lg shadow-pink-200 transition-all active:scale-95"
-            >
-              开启
-            </button>
-          </div>
-        </div>
-      )}
 
       <style>{`
-        @keyframes beat {
-          0%, 100% { transform: scale(1); }
-          25% { transform: scale(1.25); }
-          40% { transform: scale(1); }
-          60% { transform: scale(1.18); }
-        }
         @keyframes dmk-drift {
           from { transform: translateX(0); opacity: 0.95; }
           6% { opacity: 1; }

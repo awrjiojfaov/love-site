@@ -7,19 +7,15 @@ import loginBg from './assets/login-bg.webp'
 import { warmupSync } from './lib/warmup'
 import { initCloudSync } from './lib/cloudSync'
 import { subscribeLockdown, setGardenLocked as setGardenLockedCloud, GARDEN_KEEPER } from './lib/lockdown'
-import { getSpaceId, setSpaceId, hasSecretFeatures } from './lib/space'
+import { getSpaceId, setSpaceId } from './lib/space'
 import { APP_TITLE, ICP } from './config'
 
 // 功能页按需加载：主页秒开，进入时才下载对应代码
-const SecretPage = lazy(() => import('./sections/SecretPage'))
-const FlyingChessPage = lazy(() => import('./sections/FlyingChessPage'))
 const RatingsPage = lazy(() => import('./sections/RatingsPage'))
 const QuizPage = lazy(() => import('./sections/QuizPage'))
 const AskPage = lazy(() => import('./sections/AskPage'))
 const FarmPage = lazy(() => import('./sections/FarmPage'))
 const RecordsPage = lazy(() => import('./sections/RecordsPage'))
-const DoRatingsPage = lazy(() => import('./sections/DoRatingsPage'))
-const WheelPage = lazy(() => import('./sections/WheelPage'))
 const MapPage = lazy(() => import('./sections/MapPage'))
 const WishShopPage = lazy(() => import('./sections/WishShopPage'))
 const StoryPage = lazy(() => import('./sections/StoryPage'))
@@ -35,15 +31,11 @@ const StockPage = lazy(() => import('./sections/StockPage'))
 
 /** 空闲时预载全部功能页代码：点开时无需再等下载 */
 function preloadPages(): void {
-  void import('./sections/SecretPage')
-  void import('./sections/FlyingChessPage')
   void import('./sections/RatingsPage')
   void import('./sections/QuizPage')
   void import('./sections/AskPage')
   void import('./sections/FarmPage')
   void import('./sections/RecordsPage')
-  void import('./sections/DoRatingsPage')
-  void import('./sections/WheelPage')
   void import('./sections/MapPage')
   void import('./sections/WishShopPage')
   void import('./sections/StoryPage')
@@ -56,12 +48,10 @@ function preloadPages(): void {
   void import('./sections/StockPage')
 }
 
-/** 空闲时预取大图（农场场景 / 转盘），点开不等图片 */
+/** 空闲时预取大图（农场场景），点开不等图片 */
 function preloadImages(): void {
   const urls = [
     new URL('./assets/farm-scene-portrait.webp', import.meta.url).href,
-    new URL('./assets/wheel-ring.webp', import.meta.url).href,
-    new URL('./assets/wheel-bg.webp', import.meta.url).href,
   ]
   urls.forEach((u) => {
     const img = new Image()
@@ -71,7 +61,7 @@ function preloadImages(): void {
 
 const SESSION_KEY = 'love-current-user'
 
-type Page = 'home' | 'secret' | 'ratings' | 'quiz' | 'ask' | 'farm' | 'records' | 'doratings' | 'wheel' | 'map' | 'wishshop' | 'story' | 'memoir' | 'jar' | 'binding' | 'admin' | 'whisper' | 'drawguess' | 'jade' | 'auction' | 'stock' | 'flyingchess'
+type Page = 'home' | 'ratings' | 'quiz' | 'ask' | 'farm' | 'records' | 'map' | 'wishshop' | 'story' | 'memoir' | 'jar' | 'binding' | 'admin' | 'whisper' | 'drawguess' | 'jade' | 'auction' | 'stock'
 
 function loadSession(): User | null {
   const name = localStorage.getItem(SESSION_KEY)
@@ -170,7 +160,7 @@ export default function App() {
     // 全量数据云同步先行：换浏览器/换设备登录时，把云端 retained 数据落回本地，
     // 再预热各模块订阅——剧情存档等本地-only 数据靠它恢复
     initCloudSync()
-    warmupSync(user.name)
+    warmupSync()
     const ric: (cb: () => void) => void =
       'requestIdleCallback' in window
         ? (cb) => window.requestIdleCallback(cb, { timeout: 4000 })
@@ -213,27 +203,7 @@ export default function App() {
         <LoginPage onLogin={handleLogin} />
       ) : (
         <Suspense fallback={<PageLoader />}>
-          {page === 'secret' ? (
-            <SecretPage
-              user={user}
-              onBack={() => setPage('home')}
-              onOpenDo={() => setPage('doratings')}
-              onOpenWheel={() => setPage('wheel')}
-              onOpenFlyingChess={() => setPage('flyingchess')}
-            />
-          ) : page === 'flyingchess' ? (
-            hasSecretFeatures(user.name) ? (
-              <FlyingChessPage user={user} onBack={() => setPage('secret')} />
-            ) : (
-              <SecretPage
-                user={user}
-                onBack={() => setPage('home')}
-                onOpenDo={() => setPage('doratings')}
-                onOpenWheel={() => setPage('wheel')}
-                onOpenFlyingChess={() => setPage('flyingchess')}
-              />
-            )
-          ) : page === 'ratings' ? (
+          {page === 'ratings' ? (
             <RatingsPage user={user} onBack={() => setPage('home')} />
           ) : page === 'quiz' ? (
             <QuizPage user={user} onBack={() => setPage('home')} />
@@ -243,30 +213,6 @@ export default function App() {
             <FarmPage user={user} onBack={() => setPage('home')} />
           ) : page === 'records' ? (
             <RecordsPage user={user} onBack={() => setPage('home')} />
-          ) : page === 'doratings' ? (
-            hasSecretFeatures(user.name) ? (
-              <DoRatingsPage user={user} onBack={() => setPage('secret')} />
-            ) : (
-              <SecretPage
-                user={user}
-                onBack={() => setPage('home')}
-                onOpenDo={() => setPage('doratings')}
-                onOpenWheel={() => setPage('wheel')}
-                onOpenFlyingChess={() => setPage('flyingchess')}
-              />
-            )
-          ) : page === 'wheel' ? (
-            hasSecretFeatures(user.name) ? (
-              <WheelPage user={user} onBack={() => setPage('secret')} />
-            ) : (
-              <SecretPage
-                user={user}
-                onBack={() => setPage('home')}
-                onOpenDo={() => setPage('doratings')}
-                onOpenWheel={() => setPage('wheel')}
-                onOpenFlyingChess={() => setPage('flyingchess')}
-              />
-            )
           ) : page === 'map' ? (
             <MapPage user={user} onBack={() => setPage('home')} />
           ) : page === 'wishshop' ? (
@@ -303,7 +249,6 @@ export default function App() {
               user={user}
               onLogout={handleLogout}
               onOpenRatings={() => setPage('ratings')}
-              onOpenSecret={() => setPage('secret')}
               onOpenQuiz={() => setPage('quiz')}
               onOpenAsk={() => setPage('ask')}
               onOpenFarm={() => setPage('farm')}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeft, Trash2, Users, Gem, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Trash2, Users, Gem } from 'lucide-react'
 import type { User } from './LoginPage'
 import { DEFAULT_USERS } from './LoginPage'
 import {
@@ -7,42 +7,10 @@ import {
   getRegistry,
   removePair,
   subscribeRegistry,
-  setUserHidden,
-  setGlobalHidden,
   type Registry,
 } from '../lib/registry'
 import { seedStones, jadeAliveCount } from '../lib/jade'
 import { ADMIN_NAME, ADMIN_PASSWORD, MEMBER_A, MEMBER_B } from '../config'
-
-/** 小开关：用于隐藏页面总开关与逐账号权限 */
-function Toggle({
-  on,
-  onChange,
-  disabled,
-}: {
-  on: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      onClick={() => !disabled && onChange(!on)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-        on ? 'bg-gradient-to-r from-purple-400 to-pink-400' : 'bg-gray-300'
-      } ${disabled ? 'opacity-40' : ''}`}
-    >
-      <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          on ? 'left-[22px]' : 'left-0.5'
-        }`}
-      />
-    </button>
-  )
-}
 
 export default function AdminPage({ user, onBack }: { user: User; onBack: () => void; onCreateUser?: (user: User) => void }) {
   const [registry, setRegistry] = useState<Registry>(getRegistry())
@@ -128,7 +96,6 @@ export default function AdminPage({ user, onBack }: { user: User; onBack: () => 
   }
 
   const pairs = Object.values(registry.pairs).sort((a, b) => b.createdAt - a.createdAt)
-  const hiddenOn = registry.config?.hiddenPages !== false
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-[#fff5f8] via-[#fdeef6] to-[#fae3ef]">
@@ -147,32 +114,6 @@ export default function AdminPage({ user, onBack }: { user: User; onBack: () => 
       </div>
 
       <div className="mx-auto max-w-md px-5 pb-16">
-        {/* 隐藏页面设置（本节同时管理总开关与逐账号权限） */}
-        <div className="mb-6 rounded-3xl bg-white p-6 shadow-lg shadow-pink-100">
-          <div className="mb-4 flex items-center gap-2">
-            {hiddenOn ? (
-              <Eye className="h-4 w-4 text-purple-400" />
-            ) : (
-              <EyeOff className="h-4 w-4 text-gray-400" />
-            )}
-            <h2 className="text-lg font-bold text-[#c44d7d]">隐藏页面设置</h2>
-          </div>
-
-          <div className="flex items-center justify-between rounded-2xl bg-purple-50 p-3">
-            <div className="pr-3">
-              <p className="text-sm font-medium text-[#8a4a68]">启用隐藏页面</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
-                关闭后所有账号（含你们俩）都进不去隐藏页面
-              </p>
-            </div>
-            <Toggle on={hiddenOn} onChange={(v) => setGlobalHidden(user.name, v)} />
-          </div>
-
-          <p className="mt-3 text-xs leading-relaxed text-pink-300">
-            下面每个账号的开关控制「别人」能不能打开隐藏页面；新建账号默认开启。
-          </p>
-        </div>
-
         {/* 创建账号组按钮 */}
         <div className="mb-6">
           <button
@@ -336,27 +277,6 @@ export default function AdminPage({ user, onBack }: { user: User; onBack: () => 
                   })}
                 </div>
 
-                {/* 逐账号隐藏页面权限 */}
-                <div className="mt-2 space-y-2">
-                  {p.members.map((m) => {
-                    const allow = registry.users[m]?.allowHidden !== false
-                    return (
-                      <div
-                        key={m}
-                        className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2"
-                      >
-                        <span className="text-xs text-[#8a4a68]">
-                          {m} · 隐藏页面权限
-                        </span>
-                        <Toggle
-                          on={allow}
-                          disabled={!hiddenOn}
-                          onChange={(v) => setUserHidden(user.name, m, v)}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
             ))}
           </div>
